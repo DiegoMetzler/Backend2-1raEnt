@@ -1,27 +1,30 @@
+require('dotenv').config();
 const express = require('express');
-const mongoose = require('mongoose');
-const cookieParser = require('cookie-parser');
-const sessionRouter = require('./routes/sessionRouter');
-const passport = require('./config/passport');
+const mongoose = require('./config/dbConfig');
+const passport = require('passport');
+const { initializePassport } = require('./config/passportConfig');
 
-require('dotenv').config(); // Carga variables desde .env
+const cartRouter = require('./routes/cartRouter');
+const productRouter = require('./routes/productRouter');
+const sessionRouter = require('./routes/sessionRouter');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middlewares
 app.use(express.json());
-app.use(cookieParser());
+app.use(express.urlencoded({ extended: true }));
+
+// Passport
+initializePassport();
 app.use(passport.initialize());
 
 // Rutas
+app.use('/api/products', productRouter);
+app.use('/api/carts', cartRouter);
 app.use('/api/sessions', sessionRouter);
 
-// Conexión a la base de datos
-mongoose
-  .connect(process.env.DB_URL, { useNewUrlParser: true, useUnifiedTopology: true })
-  .then(() => console.log('Conectado a la base de datos'))
-  .catch((err) => console.error('Error al conectar la base de datos:', err));
-
-// Inicio del servidor
-app.listen(PORT, () => console.log(`Servidor corriendo en http://localhost:${PORT}`));
+// Servidor
+app.listen(PORT, () => {
+  console.log(`Servidor corriendo en http://localhost:${PORT}`);
+});

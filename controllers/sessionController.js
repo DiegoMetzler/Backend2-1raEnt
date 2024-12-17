@@ -1,38 +1,53 @@
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcrypt');
-const User = require('../models/User');
+const userService = require('../services/userService');
+const { hashPassword, comparePassword } = require('../utils/bcryptUtils');
+const { generateToken } = require('../utils/jwtUtils');
 
-exports.login = async (req, res) => {
-  const { email, password } = req.body;
-
+const login = async (req, res) => {
   try {
-    const user = await User.findOne({ email });
-    if (!user || !bcrypt.compareSync(password, user.password)) {
-      return res.status(401).json({ message: 'Credenciales inválidas' });
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Todos los campos son obligatorios' });
     }
 
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
-    res.cookie('jwt', token, { httpOnly: true }).json({ message: 'Login exitoso', token });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
+    const user = await userService.findUserByEmail(email);
 
-exports.current = async (req, res) => {
-  const token = req.cookies.jwt;
-
-  if (!token) {
-    return res.status(401).json({ message: 'No estás autenticado' });
-  }
-
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(decoded.id).select('-password');
     if (!user) {
-      return res.status(401).json({ message: 'Token inválido' });
+      return res.status(401).json({ error: 'Credenciales incorrectas' });
     }
-    res.json({ user });
-  } catch (err) {
-    res.status(401).json({ message: 'Token inválido' });
+
+    const isPasswordValid = comparePassword(password, user.password);
+
+    if (!isPasswordValid) {
+      return res.status(401).json({ error: 'Credenciales incorrectas' });
+    }
+
+    const token = generateToken(user);
+
+    res.cookie('authToken', token, { httpOnly: true });
+    res.status(200).json({ message: 'Login exitoso', token });
+  } catch (error) {
+    res.status(500).json({ error: 'Error en el login' });
   }
 };
+
+const getCurrentUser = async (req, res) => {
+  try {
+    const user = req.user;
+
+  
+    const userDTO = {
+      id: user._id,
+      first_name: user.first_name,
+      last_name: user.last_name,
+      email: user.email,
+      role: user.role,
+    };
+
+    res.status(200).json({ user: userDTO });
+  } catch (error) {
+    res.status(500).json({ error: 'Error al obtener el usuario' });
+  }
+};
+
+module.exports = { login, getCurrentUser };
